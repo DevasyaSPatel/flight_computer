@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flight Computer UI</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+
+    <!-- Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Top Bar -->
+        <header class="top-bar">
+            <div class="logo-section">
+                <i class="fa-solid fa-rocket"></i>
+                <h1>AERO<span class="highlight">DYNAMICS</span></h1>
+            </div>
+            <div class="controls-section">
+                <div class="status-indicator" id="connection-status">
+                    <span class="dot"></span> <span class="text">Disconnected</span>
+                </div>
+                <button id="theme-toggle" class="btn-icon" title="Toggle Theme">
+                    <i class="fa-solid fa-sun"></i>
+                </button>
+                <button id="record-btn" class="btn-primary">
+                    <i class="fa-solid fa-circle"></i> Start Recording
+                </button>
+                <button id="export-btn" class="btn-secondary" disabled>
+                    <i class="fa-solid fa-file-csv"></i> Export CSV
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Grid -->
+        <main class="main-grid">
+            <!-- Left Column: 3D Orientation -->
+            <section class="panel left-panel">
+                <div class="panel-header">
+                    <h2><i class="fa-solid fa-cube"></i> Orientation</h2>
+                </div>
+                <div id="rocket-container">
+                    <!-- Three.js Canvas will be here -->
+                </div>
+                <div class="orientation-values">
+                    <div class="value-item">
+                        <label>PITCH</label>
+                        <span id="val-pitch">0.00°</span>
+                    </div>
+                    <div class="value-item">
+                        <label>YAW</label>
+                        <span id="val-yaw">0.00°</span>
+                    </div>
+                    <div class="value-item">
+                        <label>ROLL</label>
+                        <span id="val-roll">0.00°</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Middle Column: Charts -->
+            <section class="panel middle-panel">
+                <div class="panel-header">
+                    <h2><i class="fa-solid fa-chart-line"></i> Live Telemetry</h2>
+                </div>
+                <div class="charts-container">
+                    <div class="chart-wrapper">
+                        <canvas id="altitudeChart"></canvas>
+                    </div>
+                    <div class="chart-wrapper">
+                        <canvas id="velocityChart"></canvas>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Right Column: Data Flow -->
+            <section class="panel right-panel">
+                <div class="panel-header">
+                    <h2><i class="fa-solid fa-microchip"></i> Flight Data</h2>
+                </div>
+                <div class="data-grid">
+                    <div class="data-card">
+                        <label>ALTITUDE</label>
+                        <div class="data-value"><span id="val-altitude">0</span> <small>m</small></div>
+                    </div>
+                    <div class="data-card">
+                        <label>MAX ALT</label>
+                        <div class="data-value highlight"><span id="val-max-alt">0</span> <small>m</small></div>
+                    </div>
+                    <div class="data-card">
+                        <label>VELOCITY</label>
+                        <div class="data-value"><span id="val-velocity">0</span> <small>m/s</small></div>
+                    </div>
+                    <div class="data-card">
+                        <label>MAX VEL</label>
+                        <div class="data-value highlight"><span id="val-max-vel">0</span> <small>m/s</small></div>
+                    </div>
+                    <div class="data-card">
+                        <label>ACCEL</label>
+                        <div class="data-value"><span id="val-accel">0</span> <small>m/s²</small></div>
+                    </div>
+                    <div class="data-card">
+                        <label>MAX ACCEL</label>
+                        <div class="data-value highlight"><span id="val-max-accel">0</span> <small>m/s²</small></div>
+                    </div>
+                    <div class="data-card">
+                        <label>TEMP</label>
+                        <div class="data-value"><span id="val-temp">0</span> <small>°C</small></div>
+                    </div>
+                    <div class="data-card">
+                        <label>TIME</label>
+                        <div class="data-value"><span id="val-time">00:00</span> <small>s</small></div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Bottom: Timeline -->
+        <footer class="timeline-bar">
+            <div class="timeline-track">
+                <div class="state-node" data-state="IDLE">IDLE</div>
+                <div class="line"></div>
+                <div class="state-node" data-state="ASCENT">ASCENT</div>
+                <div class="line"></div>
+                <div class="state-node" data-state="COAST">COAST</div>
+                <div class="line"></div>
+                <div class="state-node" data-state="DESCENT">DESCENT</div>
+                <div class="line"></div>
+                <div class="state-node" data-state="LANDED">LANDED</div>
+            </div>
+            <div class="mission-timer">
+                T+ <span id="mission-time">00:00.00</span>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Scripts -->
+    <script src="{{ url_for('static', filename='js/rocket.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/charts.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
