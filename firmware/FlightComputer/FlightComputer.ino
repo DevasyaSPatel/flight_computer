@@ -150,7 +150,7 @@ void readSensors(unsigned long currentTime) {
 
 void runStateMachine(unsigned long currentTime) {
   switch (currentState) {
-    case STATE_IDLE:
+    case STATE_IDLE: {
       // Detect Launch: High acceleration upwards (usually Z axis depending on mounting)
       // Assuming Z is vertical. Check magnitude to be safe.
       float accMag = sqrt(ax*ax + ay*ay + az*az);
@@ -160,6 +160,7 @@ void runStateMachine(unsigned long currentTime) {
         Serial.println("LAUNCH DETECTED!");
       }
       break;
+    }
 
     case STATE_ASCENT:
       // Detect Apogee: Current altitude drops below max altitude

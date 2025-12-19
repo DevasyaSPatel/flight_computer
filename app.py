@@ -16,46 +16,31 @@ is_running = True
 serial_thread = None
 current_port_name = None
 
-def find_arduino_port():
-    """
-    Auto-detects a likely Arduino/Serial device.
-    Returns the port name (e.g., 'COM3') or None.
-    """
-    ports = list(serial.tools.list_ports.comports())
-    for p in ports:
-        # Common descriptions for Arduino/ESP devices
-        if "Arduino" in p.description or "CH340" in p.description or "CP210" in p.description or "USB Serial" in p.description:
-            return p.device
-    # Fallback: just return the first available port if any
-    if len(ports) > 0:
-        return ports[0].device
-    return None
+# Global configuration
+MANUAL_PORT = 'COM11' # Enter your port here (e.g., 'COM11')
 
 def read_serial_data():
     """
     Reads data from the serial port and emits it to the client.
     Format: packetCount,state,alt,maxAlt,vel,ax,ay,az,gx,gy,gz,temp
     """
-    global serial_port, current_port_name
+    global serial_port
     
     while is_running:
         try:
             if serial_port is None or not serial_port.is_open:
-                port_name = find_arduino_port()
-                if port_name:
-                    print(f"Attempting to connect to {port_name}...")
-                    try:
-                        serial_port = serial.Serial(port_name, 115200, timeout=1)
-                        current_port_name = port_name
-                        time.sleep(2) # Wait for connection to settle
-                        socketio.emit('serial_status', {'connected': True, 'port': port_name})
-                        print(f"Connected to {port_name}")
-                    except Exception as e:
-                        print(f"Failed to connect: {e}")
-                        time.sleep(2)
-                else:
-                    # No port found
-                    socketio.emit('serial_status', {'connected': False, 'message': 'No device found'})
+                # Manual Connection Only
+                port_name = MANUAL_PORT
+                print(f"Attempting to connect to {port_name}...")
+                try:
+                    serial_port = serial.Serial(port_name, 115200, timeout=1)
+                    current_port_name = port_name
+                    time.sleep(2) # Wait for connection to settle
+                    socketio.emit('serial_status', {'connected': True, 'port': port_name})
+                    print(f"Connected to {port_name}")
+                except Exception as e:
+                    print(f"Failed to connect to {port_name}: {e}")
+                    print("Retrying in 2 seconds...")
                     time.sleep(2)
                 continue
 
@@ -141,7 +126,7 @@ def index():
     return render_template('index.html')
 
 @socketio.on('connect')
-def client_connect():
+def client_connect(auth=None):
     print('Client connected')
     # Send current status immediately
     if serial_port and serial_port.is_open:
@@ -151,10 +136,18 @@ def client_connect():
 
 if __name__ == '__main__':
     # Start serial thread
-    serial_thread = threading.Thread(target=read_serial_data)
-    serial_thread.daemon = True
-    serial_thread.start()
+    # IMPORTANT: With debug=True, Flask runs this script twice (Parent + Child).
+    # We must only start the serial connection in the Child process (WERKZEUG_RUN_MAIN='true')
+    # to avoid "Access Denied" errors where the Parent locks the port.
+    import os
+    if os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
+        serial_thread = threading.Thread(target=read_serial_data)
+        serial_thread.daemon = True
+        serial_thread.start()
+        print(f"Serial thread started (PID: {os.getpid()})")
+    else:
+        print(f"Main process (PID: {os.getpid()}) - Waiting for reloader...")
     
     print("Starting Flask Server...")
+    # Allow reloader so code changes update live
     socketio.run(app, debug=True, host='0.0.0.0', port=5000)
-
