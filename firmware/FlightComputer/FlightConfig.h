@@ -1,33 +1,46 @@
 #ifndef FLIGHT_CONFIG_H
 #define FLIGHT_CONFIG_H
 
-// --- Pin Definitions (ESP32) ---
+#include <stdint.h>
 
-// LoRa Module (SX1278/RFM95)
+// --- Pin Definitions (ESP32) ---
 #define LORA_SS     5
 #define LORA_RST    14
 #define LORA_DIO0   2
 
-// I2C (MPU6050, BMP085)
 #define I2C_SDA     21
 #define I2C_SCL     22
-
-// Actuators
-#define PIN_MOSFET  13  // Pyro channel for ejection
-#define PIN_BUZZER  12  // Optional buzzer for status
+#define PIN_MOSFET  13  
+#define PIN_BUZZER  12 // User preferred Pin 12
+#define PIN_LED     15 
 
 // --- Constants ---
+#define SEA_LEVEL_PRESSURE    1013 
+#define LORA_FREQ             433E6 
+#define LORA_TX_POWER         20
+#define LORA_SPREADING_FACTOR 8     // Balanced for range/speed
+#define LORA_SYNC_WORD        0xF3  // Network Isolation
 
-// Altimeter
-#define SEA_LEVEL_PRESSURE 1013.25 // hPa, update before flight if possible
+// --- Tuning ---
+#define ACCEL_LAUNCH_THRESHOLD  15.0 
+#define APOGEE_VEL_THRESHOLD    2.0 
+#define LANDING_ALT_THRESHOLD   10.0 
+#define EJECTION_BURN_TIME      2000 
+#define LANDING_DETECT_TIME     3000 
 
-// Flight Logic
-#define ACCEL_LAUNCH_THRESHOLD  15.0 // m/s^2 (approx 1.5g)
-#define APOGEE_DROP_THRESHOLD   2.0  // meters (detect apogee after dropping this much)
-#define EJECTION_BURN_TIME      2000 // milliseconds to keep mosfet ON
-
-// Telemetry
-#define LORA_FREQ   433E6 // or 915E6 depending on region
-#define TELEMETRY_RATE 100 // ms between packets
+// --- Telemetry Packet (14 Bytes) ---
+// Switched to standard types for reliability. 
+// Size increase is negligible for LoRa.
+#pragma pack(push, 1)
+struct RocketData {
+  uint32_t timestamp;   // 4 bytes
+  uint8_t  state;       // 1 byte
+  int16_t  alt_cm;      // 2 bytes
+  int16_t  vel_cm;      // 2 bytes
+  int16_t  acc_mg;      // 2 bytes
+  int16_t  max_alt_cm;  // 2 bytes (Added for redundancy)
+  uint8_t  checksum;    // 1 byte (XOR checksum)
+};
+#pragma pack(pop)
 
 #endif

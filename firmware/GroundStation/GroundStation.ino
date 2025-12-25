@@ -1,41 +1,78 @@
 #include <SPI.h>
 #include <LoRa.h>
 
-// --- Pin Definitions (ESP32) ---
-#define LORA_SS     5
-#define LORA_RST    14
-#define LORA_DIO0   2
+// --- SHARED CONFIG ---
+// IMPORTANT: Adjust path if your IDE doesn't support relative includes. 
+// You can also copy FlightConfig.h to the GroundStation folder.
+#include "../FlightComputer/FlightConfig.h" 
 
-#define LORA_FREQ   433E6 // Match FC frequency
+// --- Constants ---
+// Data struct and LoRa settings are now pulled from FlightConfig.h!
+
+// --- Global Tracking ---
+float maxAltReceived = 0;
 
 void setup() {
   Serial.begin(115200);
-  while (!Serial);
-
-  Serial.println("LoRa Receiver");
+  delay(1000); 
 
   LoRa.setPins(LORA_SS, LORA_RST, LORA_DIO0);
   if (!LoRa.begin(LORA_FREQ)) {
-    Serial.println("Starting LoRa failed!");
+    Serial.println("LoRa Init Failed!");
     while (1);
   }
+  LoRa.setTxPower(LORA_TX_POWER);
+  LoRa.setSpreadingFactor(LORA_SPREADING_FACTOR);
+  LoRa.setSyncWord(LORA_SYNC_WORD);
+  LoRa.enableCrc();
+  
+  Serial.println("GS Ready. Linked to FlightConfig.");
 }
 
 void loop() {
-  // try to parse packet
   int packetSize = LoRa.parsePacket();
-  if (packetSize) {
-    // received a packet
-    // Serial.print("Received packet '");
+  
+  if (packetSize) { 
+    if (packetSize == sizeof(RocketData)) {
+      RocketData data;
+      LoRa.readBytes((uint8_t*)&data, sizeof(RocketData));
 
-    // read packet
-    while (LoRa.available()) {
-      String LoRaData = LoRa.readString();
-      Serial.println(LoRaData); // Send to PC
+      // 1. Verify Checksum
+      uint8_t calcChecksum = 0;
+      uint8_t *ptr = (uint8_t*)&data;
+      for (int i = 0; i < sizeof(RocketData) - 1; i++) {
+        calcChecksum ^= ptr[i];
+      }
+
+      if (calcChecksum == data.checksum) {
+        // Valid Packet!
+        
+        // 2. Unpack
+        float altitude = data.alt_cm / 100.0;
+        float velocity = data.vel_cm / 100.0;
+        float accelG   = data.acc_mg / 1000.0;
+        float maxAlt   = data.max_alt_cm / 100.0;
+
+        // 3. Serial Output (CSV)
+        // Timestamp, State, Alt, MaxAlt, Vel, Acc
+        Serial.print(data.timestamp); Serial.print(",");
+        Serial.print(data.state); Serial.print(",");
+        Serial.print(altitude, 2); Serial.print(",");
+        Serial.print(maxAlt, 2); Serial.print(",");
+        Serial.print(velocity, 2); Serial.print(",");
+        Serial.print(accelG, 2); Serial.print(",");
+        
+        Serial.print(LoRa.packetRssi()); Serial.print(",");
+        Serial.println(LoRa.packetSnr());
+
+      } else {
+        Serial.println("Error: Checksum Fail");
+      }
+
+    } else {
+      Serial.print("Error: Size Mismatch. Got: ");
+      Serial.println(packetSize);
+      LoRa.readString(); // Flush
     }
-
-    // print RSSI of packet
-    // Serial.print("' with RSSI ");
-    // Serial.println(LoRa.packetRssi());
   }
 }
